@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mind Master: The Quiz Game</title>
+    <style>
+        :root {
+            --primary: #6C63FF;
+            --secondary: #4CAF50;
+            --danger: #FF5252;
+            --dark: #2C3E50;
+            --light: #ECF0F1;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            overflow: hidden;
+        }
+
+        /* --- UI Containers --- */
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            transition: opacity 0.5s;
+            opacity: 0;
+            pointer-events: none;
+            padding: 20px;
+        }
+
+        .screen.active {
+            opacity: 1;
+            pointer-events: all;
+            z-index: 10;
+        }
+
+        /* --- Header / HUD --- */
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .btn-icon {
+            background: var(--glass);
+            border: 2px solid white;
+            color: white;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .clue-box {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* --- Start Screen --- */
+        h1 { font-size: 3rem; text-shadow: 0 5px 15px rgba(0,0,0,0.5); margin-bottom: 20px; text-align: center; }
+        .btn-main {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(108, 99, 255, 0.4);
+            transition: transform 0.2s;
+            margin-top: 20px;
+        }
+        .btn-main:active { transform: scale(0.95); }
+
+        /* --- Level Select Screen --- */
+        .difficulty-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: var(--glass);
+            border: 1px solid white;
+            color: white;
+            cursor: pointer;
+            border-radius: 10px;
+        }
+        .tab.active { background: white; color: var(--dark); }
+        
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            width: 100%;
+            max-width: 500px;
+        }
+        .level-btn {
+            aspect-ratio: 1;
+            background: var(--glass);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .level-btn.locked { background: #333; color: #777; cursor: not-allowed; border: none; }
+        .level-btn.completed { background: var(--secondary); border-color: var(--secondary); }
+        
+        /* --- Game Screen --- */
+        .game-card {
+            background: white;
+            color: var(--dark);
+            padding: 25px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+            position: relative;
+        }
+        .level-badge {
+            background: var(--primary);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .question-text { font-size: 1.3rem; margin: 20px 0; font-weight: 600; }
+        
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .option-btn {
+            background: var(--light);
+            border: 2px solid #ddd;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--dark);
+        }
+        .option-btn:hover { background: #e0e0e0; }
+        
+        .option-btn.correct { background: var(--secondary); color: white; border-color: var(--secondary); }
+        .option-btn.wrong { background: var(--danger); color: white; border-color: var(--danger); }
+        .option-btn.hidden { opacity: 0; pointer-events: none; }
+
+        .clue-btn-game {
+            position: absolute;
+            top: -15px;
+            right: 10px;
+            background: #FFD700;
+            color: #333;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 5px rgba(0,0,0,0.2);
+        }
+        .clue-btn-game:disabled { filter: grayscale(1); cursor: not-allowed; }
+
+        /* --- Modal --- */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .modal.active { opacity: 1; pointer-events: all; }
+        .modal-content {
+            background: white;
+            color: var(--dark);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 80%;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { from { transform: scale(0.5); } to { transform: scale(1); } }
+        
+        .modal h2 { color: var(--secondary); margin-bottom: 10px; }
+        .btn-next {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 20px;
+            margin-top: 15px;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+
+        /* Mobile specific */
+        @media (max-width: 480px) {
+            .options-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 2rem; }
+            .level-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hud">
+        <button class="btn-icon" id="soundToggle" onclick="toggleSound()">??</button>
+        <div class="clue-box">?? <span id="clueCount">100</span></div>
+    </div>
+
+    <div id="start-screen" class="screen active">
+        <h1>MIND MASTER</h1>
+        <p>Logic. Math. Riddles.</p>
+        <button class="btn-main" onclick="startGame()">START GAME</button>
+    </div>
+
+    <div id="level-screen" class="screen">
+        <h2>Select Difficulty</h2>
+        <div class="difficulty-tabs">
+            <div class="tab active" onclick="setDifficulty('easy')">Easy</div>
+            <div class="tab" onclick="setDifficulty('normal')">Normal</div>
+            <div class="tab" onclick="setDifficulty('hard')">Hard</div>
+        </div>
+        <div id="levelGrid" class="level-grid">
+            </div>
+        <button style="margin-top: 20px; background: transparent; border: 1px solid white; color: white; padding: 5px 15px; border-radius: 10px; cursor: pointer;" onclick="showScreen('start-screen')">Back</button>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div class="game-card">
+            <span class="level-badge" id="currentLevelDisplay">Level 1</span>
+            <button class="clue-btn-game" onclick="useClue()">Use Clue (-1)</button>
+            <div id="questionText" class="question-text">Question goes here...</div>
+            <div id="optionsContainer" class="options-grid">
+                </div>
+        </div>
+        <button style="margin-top: 20px; background: rgba(255,255,255,0.2); border: none; color: white; padding: 10px 20px; border-radius: 20px; cursor: pointer;" onclick="showScreen('level-screen')">Exit Level</button>
+    </div>
+
+    <div id="victory-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Congratulations!</h2>
+            <p id="modalMsg">Level Completed</p>
+            <button class="btn-next" onclick="nextLevel()">Next Level ?</button>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        const gameState = {
+            clues: 100,
+            sound: true,
+            currentDifficulty: 'easy',
+            progress: {
+                easy: 1,
+                normal: 1,
+                hard: 1
+            },
+            currentLevelIndex: 1,
+            firstRun: true
+        };
+
+        // --- AUDIO SYSTEM (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (!gameState.sound) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'win') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+                osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        // --- QUESTIONS ---
+        const questionTemplates = [
+            { t: "math_add", q: "What is X + Y?", gen: () => { let a=r(10,50), b=r(10,50); return {q:`${a} + ${b} = ?`, a:a+b, o:[a+b+r(1,5), a+b-r(1,5), a+b+10]} } },
+            { t: "math_seq", q: "Next in sequence?", gen: () => { let s=r(1,5), d=r(2,4); return {q:`${s}, ${s+d}, ${s+d*2}, ${s+d*3}, ...`, a:s+d*4, o:[s+d*4+1, s+d*4-1, s+d*3]} } },
+            { t: "riddle", list: [
+                {q:"I speak without a mouth and hear without ears. What am I?", a:"Echo", o:["Shadow", "Wind", "Ghost"]},
+                {q:"The more of this there is, the less you see. What is it?", a:"Darkness", o:["Fog", "Light", "Glass"]},
+                {q:"What has keys but can't open locks?", a:"Piano", o:["Map", "Door", "Code"]},
+                {q:"What comes once in a minute, twice in a moment, but never in a thousand years?", a:"Letter M", o:["Time", "Love", "Letter E"]},
+                {q:"I have cities, but no houses. I have mountains, but no trees. What am I?", a:"Map", o:["Globe", "Dream", "Painting"]},
+                {q:"What has hands but cannot clap?", a:"Clock", o:["Statue", "Robot", "Doll"]},
+                {q:"Identify the missing number: 2, 4, 8, 16, ?", a:"32", o:["24", "30", "36"]},
+                {q:"Which is heavier: 1kg of cotton or 1kg of iron?", a:"Equal", o:["Iron", "Cotton", "Depends"]},
+                {q:"If a brother has 4 sisters, and each sister has 1 brother, how many children are there?", a:"5", o:["9", "8", "4"]},
+                {q:"What can travel around the world while staying in a corner?", a:"Stamp", o:["Air", "Thought", "Sunlight"]}
+            ]}
+        ];
+
+        function r(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+        function getQuestionForLevel(diff, level) {
+            if (level % 3 === 0) {
+                let base = (diff === 'easy' ? 10 : diff === 'normal' ? 50 : 100);
+                let num1 = level * 2 + base;
+                let num2 = level + base;
+                let ans = num1 + num2;
+                return { q: `${num1} + ${num2} = ?`, a: ans, o: [ans+10, ans-5, ans+2] };
+            } else if (level % 3 === 1) {
+                let step = (diff === 'easy' ? 2 : diff === 'normal' ? 5 : 9);
+                let start = level;
+                let seq = [start, start+step, start+step*2];
+                return { q: `Find next: ${seq.join(', ')}, ...`, a: start+step*3, o: [start+step*3+2, start+step*3-1, start+step*4] };
+            } else {
+                let list = questionTemplates[2].list;
+                let index = (level + (diff === 'normal'? 3 : diff==='hard'?6:0)) % list.length;
+                let qData = list[index];
+                return { q: qData.q, a: qData.a, o: qData.o };
+            }
+        }
+
+        // --- CORE LOGIC ---
+
+        function init() {
+            const saved = localStorage.getItem('mindMasterSave');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                gameState.clues = parsed.clues;
+                gameState.progress = parsed.progress;
+                gameState.firstRun = false;
+            }
+            updateClueDisplay();
+        }
+
+        function saveData() {
+            localStorage.setItem('mindMasterSave', JSON.stringify({
+                clues: gameState.clues,
+                progress: gameState.progress
+            }));
+        }
+
+        function toggleSound() {
+            gameState.sound = !gameState.sound;
+            document.getElementById('soundToggle').textContent = gameState.sound ? '??' : '??';
+            playSound('click');
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            playSound('click');
+        }
+
+        function startGame() {
+            showScreen('level-screen');
+            renderLevels();
+            if (gameState.firstRun) {
+                gameState.firstRun = false;
+                saveData();
+            }
+        }
+
+        function setDifficulty(diff) {
+            gameState.currentDifficulty = diff;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            renderLevels();
+            playSound('click');
+        }
+
+        function renderLevels() {
+            const grid = document.getElementById('levelGrid');
+            grid.innerHTML = '';
+            const unlocked = gameState.progress[gameState.currentDifficulty];
+
+            for (let i = 1; i <= 100; i++) {
+                const btn = document.createElement('div');
+                btn.className = 'level-btn';
+                btn.textContent = i;
+                
+                if (i > unlocked) {
+                    btn.classList.add('locked');
+                    btn.innerHTML = '??';
+                } else {
+                    btn.onclick = () => loadLevel(i);
+                    if (i < unlocked) btn.classList.add('completed');
+                }
+                grid.appendChild(btn);
+            }
+        }
+
+        let currentQuestionData = null;
+
+        function loadLevel(levelIndex) {
+            gameState.currentLevelIndex = levelIndex;
+            document.getElementById('currentLevelDisplay').textContent = `${gameState.currentDifficulty.toUpperCase()} - Level ${levelIndex}`;
+            
+            document.querySelector('.clue-btn-game').disabled = false;
+
+            const data = getQuestionForLevel(gameState.currentDifficulty, levelIndex);
+            currentQuestionData = data;
+            
+            document.getElementById('questionText').textContent = data.q;
+            
+            let allOptions = [data.a, ...data.o];
+            allOptions.sort(() => Math.random() - 0.5);
+
+            const optContainer = document.getElementById('optionsContainer');
+            optContainer.innerHTML = '';
+
+            allOptions.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = opt;
+                btn.onclick = (e) => checkAnswer(e.target, opt, data.a);
+                optContainer.appendChild(btn);
+            });
+
+            showScreen('game-screen');
+        }
+
+        function checkAnswer(btn, selected, correct) {
+            const allBtns = document.querySelectorAll('.option-btn');
+            allBtns.forEach(b => b.style.pointerEvents = 'none');
+
+            if (String(selected) === String(correct)) {
+                // CORRECT
+                btn.classList.add('correct');
+                playSound('win');
+                
+                const currentDiff = gameState.currentDifficulty;
+                if (gameState.currentLevelIndex === gameState.progress[currentDiff]) {
+                    if (gameState.progress[currentDiff] < 100) {
+                        gameState.progress[currentDiff]++;
+                        saveData();
+                    }
+                }
+                
+                setTimeout(() => showModal(true), 1000);
+            } else {
+                // WRONG - UPDATED LOGIC HERE
+                btn.classList.add('wrong');
+                playSound('wrong');
+                
+                // Show Correct Answer
+                allBtns.forEach(b => {
+                    if (String(b.textContent) === String(correct)) {
+                        b.classList.add('correct');
+                    }
+                });
+
+                // Shake effect
+                btn.style.transform = "translateX(10px)";
+                setTimeout(() => btn.style.transform = "translateX(-10px)", 100);
+                setTimeout(() => btn.style.transform = "translateX(0)", 200);
+
+                // RESTART LEVEL AUTOMATICALLY AFTER 1.5 SECONDS
+                setTimeout(() => {
+                    loadLevel(gameState.currentLevelIndex);
+                }, 1500);
+            }
+        }
+
+        function useClue() {
+            if (gameState.clues <= 0) {
+                alert("No clues left!");
+                return;
+            }
+            
+            const allBtns = Array.from(document.querySelectorAll('.option-btn'));
+            const wrongBtns = allBtns.filter(b => String(b.textContent) !== String(currentQuestionData.a));
+            
+            if (wrongBtns.length >= 2) {
+                gameState.clues--;
+                updateClueDisplay();
+                saveData();
+                playSound('click');
+                
+                wrongBtns.sort(() => Math.random() - 0.5);
+                wrongBtns[0].classList.add('hidden');
+                wrongBtns[1].classList.add('hidden');
+                
+                document.querySelector('.clue-btn-game').disabled = true;
+            }
+        }
+
+        function updateClueDisplay() {
+            document.getElementById('clueCount').textContent = gameState.clues;
+        }
+
+        function showModal(success) {
+            const modal = document.getElementById('victory-modal');
+            const title = document.getElementById('modalTitle');
+            const msg = document.getElementById('modalMsg');
+            
+            modal.classList.add('active');
+            
+            if (gameState.currentLevelIndex === 100) {
+                title.textContent = "GAME MASTER!";
+                msg.textContent = `You completed ${gameState.currentDifficulty} mode!`;
+            } else {
+                title.textContent = "Excellent!";
+                msg.textContent = "Level Unlocked";
+            }
+        }
+
+        function nextLevel() {
+            document.getElementById('victory-modal').classList.remove('active');
+            
+            if (gameState.currentLevelIndex < 100) {
+                loadLevel(gameState.currentLevelIndex + 1);
+            } else {
+                showScreen('level-screen');
+                renderLevels();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
